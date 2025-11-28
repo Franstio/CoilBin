@@ -4,6 +4,7 @@ using CoilBin.PLC;
 using Microsoft.Extensions.DependencyInjection;
 using Serilog;
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,6 +19,15 @@ public class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        try
+        {
+            ProcessStartInfo startInfo = new ProcessStartInfo() { FileName = "/bin/bash", Arguments = "sudo systemctl stop backend-web", };
+            Process proc = new Process() { StartInfo = startInfo, };
+            proc.Start();
+            Log.Information(proc.StandardOutput.ReadToEnd());
+            Log.Error(proc.StandardError.ReadToEnd());
+        }
+        catch (Exception ex) { Log.Error(ex.Message); }
         ServicesLocator.ServiceCollection.BuildConfig();
         ServicesLocator.ServiceCollection.AddCommonServices();
         ServicesLocator.BuildServices();
