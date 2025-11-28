@@ -1,0 +1,239 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+			 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+			 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+			 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+			 xmlns:vm="clr-namespace:CoilBin.ViewModels"
+			 mc:Ignorable="d" d:DesignWidth="1024" d:DesignHeight="600"
+			 x:Class="CoilBin.Views.MainView"
+			 xmlns:lvc="using:LiveChartsCore.SkiaSharpView.Avalonia"
+			 x:DataType="vm:MainViewModel">
+	<Design.DataContext>
+		<!-- This only sets the DataContext for the previewer in an IDE,
+		to set the actual DataContext for runtime, set the DataContext property in code (look at App.axaml.cs) -->
+		<vm:MainViewModel />
+	</Design.DataContext>
+	<UserControl.Styles>
+		<Style Selector="Ellipse.sensor">
+			<Setter Property="VerticalAlignment" Value="Center"/>
+			<Setter Property="HorizontalAlignment" Value="Center"/>
+			<Setter Property="Width" Value="40" />
+			<Setter Property="Height" Value="40"/>
+			<Setter Property="Margin" Value="0,0,10,0"/>
+		</Style>
+		<Style Selector="TextBlock.boxheader">
+			<Setter Property="VerticalAlignment" Value="Center"/>
+			<Setter Property="HorizontalAlignment" Value="Center"/>
+			<Setter Property="Padding" Value="10"/>
+			<Setter Property="Foreground" Value="CornFlowerBlue"/>
+			<Setter Property="FontWeight" Value="Bold"/>
+			<Setter Property="FontSize" Value="24"/>
+		</Style>
+		<Style Selector="TextBlock.sensortext">
+			<Setter Property="VerticalAlignment" Value="Center"/>
+			<Setter Property="FontSize" Value="24"/>
+			<Setter Property="Padding" Value="10"/>
+			<Setter Property="FontWeight" Value="Bold"/>
+		</Style>
+		<Style Selector="TextBlock.instruksi">
+			<Setter Property="FontSize" Value="32"/>
+			<Setter Property="FontWeight" Value="Bold"/>
+			<Setter Property="HorizontalAlignment" Value="Center"/>
+		</Style>
+	</UserControl.Styles>
+	<Grid
+	Background="#bdc3c7"
+	ColumnDefinitions="50*,50*"
+	RowDefinitions="60*,30*,10*">
+		<Grid
+		Margin="20"
+		Background="white"
+		Grid.Column="0"
+		Grid.Row="0"
+		ColumnDefinitions="100*"
+		RowDefinitions="15*,75*,10*"
+		>
+			<TextBlock 
+			Classes="boxheader">
+			Weight
+			</TextBlock>
+			<lvc:PieChart
+			InitialRotation="180"
+			MinValue="0"
+			Grid.Row="1"
+			MaxValue="100"
+			MaxAngle="180"
+			Background="white"
+			>
+				<lvc:PieChart.Series>
+					<lvc:XamlGaugeSeries
+					GaugeValue="{Binding WeightPercentage}"
+					Fill="{Binding GaugeLevel}"
+					DataLabelsSize="50"					
+					DataLabelsFormatter="{Binding XamlGaugeSeries_DataLabelsFormatter}"
+					MaxRadialColumnWidth="50"/>
+				</lvc:PieChart.Series>
+			</lvc:PieChart>
+			<TextBlock FontSize="24" TextAlignment="Center" Grid.Row="2">0.00kg</TextBlock>
+		</Grid>
+
+		<Grid
+		Background="white"
+		Grid.Column="1"
+		Margin="20"
+		ColumnDefinitions="90*,10*"  RowDefinitions="20*,15*,15*,15*,15*,20*"
+		>
+			<TextBlock
+			Grid.ColumnSpan="2"
+			Classes="boxheader"
+			>Status</TextBlock>
+
+			<TextBlock
+			Classes="sensortext"
+			Grid.Row="1"
+			Grid.Column="0"
+			>Green</TextBlock>
+
+			<Ellipse Classes="sensor"  Fill="{Binding GreenLamp}" Grid.Row="1" Grid.Column="1"/>
+
+			<TextBlock
+			Classes="sensortext"
+			Grid.Row="2"
+			Grid.Column="0"
+			>Yellow</TextBlock>
+
+			<Ellipse Classes="sensor" Fill="{Binding YellowLamp}" Grid.Row="2" Grid.Column="1"/>
+
+			<TextBlock
+			Classes="sensortext"
+			Grid.Row="3"
+			Grid.Column="0"
+			>Red</TextBlock>
+
+			<Ellipse Classes="sensor" Fill="{Binding RedLamp}" Grid.Row="3" Grid.Column="1"/>
+
+			<TextBlock
+			Grid.Row="4"
+			Grid.ColumnSpan="2"
+			Classes="boxheader"
+			>Instruksi</TextBlock>
+
+			<TextBlock
+			Grid.Row="5"
+			Classes="instruksi"
+			Grid.ColumnSpan="2"
+			
+			Text="{Binding Instruksi}"
+			></TextBlock>
+
+		</Grid>
+
+		<Grid
+		ColumnDefinitions="*,*,*"
+		Grid.Row="1"
+		Grid.Column="0"
+		Grid.ColumnSpan="2">
+			<Grid
+			Background="white"
+			Grid.Column="0"
+			Grid.Row="1"
+			Grid.ColumnSpan="1"
+			Margin="20"
+			ColumnDefinitions="90*,10*"  RowDefinitions="10*,10*,10*"
+			>
+				<TextBlock
+				Grid.ColumnSpan="2"
+			Classes="boxheader"
+				>Sensor Status</TextBlock>
+
+				<TextBlock
+				Grid.Row="1"
+				Grid.Column="0"
+				Classes="sensortext"
+				>Top</TextBlock>
+
+				<Ellipse Classes="sensor" Fill="Gray" Grid.Row="1" Grid.Column="1"/>
+
+				<TextBlock
+				Grid.Row="2"
+				Grid.Column="0"
+				Classes="sensortext"
+				>Bottom</TextBlock>
+
+				<Ellipse Classes="sensor" Fill="Gray" Grid.Row="2" Grid.Column="1"/>
+
+			</Grid>
+			<Grid
+			Background="white"
+			Grid.Column="1"
+			Grid.Row="1"
+			Grid.ColumnSpan="1"
+			Margin="20"
+			ColumnDefinitions="90*,10*"  RowDefinitions="10*,10*,10*"
+			>
+				<TextBlock
+				Grid.ColumnSpan="2"
+			Classes="boxheader"
+				>Lock Status</TextBlock>
+
+				<TextBlock
+				Grid.Row="1"
+				Grid.Column="0"
+				Classes="sensortext"
+				>Top</TextBlock>
+
+				<Ellipse Classes="sensor" Fill="Gray" Grid.Row="1" Grid.Column="1"/>
+
+				<TextBlock
+				Grid.Row="2"
+				Grid.Column="0"
+				Classes="sensortext"
+				>Bottom</TextBlock>
+
+				<Ellipse Classes="sensor" Fill="Gray" Grid.Row="2" Grid.Column="1"/>
+			</Grid>
+
+			<Button Grid.Column="2"
+					Grid.Row="1"
+					Background="white"
+					Foreground="black"
+					VerticalAlignment="Stretch"
+					HorizontalAlignment="Stretch"
+					Margin="20"
+					IsEnabled="{Binding AllowReopen}"
+					Grid.ColumnSpan="2"
+					VerticalContentAlignment="Center"
+					HorizontalContentAlignment="Center"
+					FontWeight="Bold"
+					FontSize="32"
+					Content="{Binding ReopenText}"
+					>
+			</Button>
+		</Grid>
+		<Grid 
+		Grid.ColumnSpan="2"
+		Grid.Row="2"
+		Background="white"
+		Margin="0,20,0,0"
+		ColumnDefinitions="2*,1*,1*"
+		>
+			<TextBlock 
+			VerticalAlignment="Center"
+			TextAlignment="Center">
+				Server Status: <Run Text="{Binding Timbangan}"/> Online
+			</TextBlock>
+
+			<TextBlock
+			Grid.Column="1"
+			VerticalAlignment="Center"
+			TextAlignment="Center">
+				Status PLC: <Run Text="{Binding PlcStatus}"/>
+			</TextBlock>
+			<TextBlock
+			Grid.Column="2"
+			VerticalAlignment="Center"
+			TextAlignment="Center">
+				Version: 3.0
+			</TextBlock>
+		</Grid>
+	</Grid>
+</UserControl>

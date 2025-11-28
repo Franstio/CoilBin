@@ -1,0 +1,11 @@
+@CoilBin.Api_HostAddress = http://localhost:5034
+
+GET {{CoilBin.Api_HostAddress}}/todos/
+Accept: application/json
+
+###
+
+GET {{CoilBin.Api_HostAddress}}/todos/1
+Accept: application/json
+
+###
