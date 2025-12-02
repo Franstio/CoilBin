@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CoilBin.PLC", "CoilBin.PLC\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CoilBin.Api", "CoilBin.Api\CoilBin.Api.csproj", "{571510D4-9DA5-49DF-8CFB-AE6CAA65ED4F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CoilBin.WebApi", "CoilBin.WebApi\CoilBin.WebApi.csproj", "{A24429CC-31B6-4AD0-A224-5ED7130114FB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -33,6 +35,10 @@ Global
 		{571510D4-9DA5-49DF-8CFB-AE6CAA65ED4F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{571510D4-9DA5-49DF-8CFB-AE6CAA65ED4F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{571510D4-9DA5-49DF-8CFB-AE6CAA65ED4F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A24429CC-31B6-4AD0-A224-5ED7130114FB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A24429CC-31B6-4AD0-A224-5ED7130114FB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A24429CC-31B6-4AD0-A224-5ED7130114FB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A24429CC-31B6-4AD0-A224-5ED7130114FB}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

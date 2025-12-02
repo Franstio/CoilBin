@@ -5,7 +5,9 @@ using CoilBin.PLC.Models;
 using CoilBin.PLC.Services;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using Serilog;
 using SocketIOClient;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace CoilBin.Api
@@ -35,10 +37,10 @@ namespace CoilBin.Api
 
             var app = builder.Build();
 
-            app.MapPost("/Start", async (BinModel bin) =>
+            app.MapPost("/Start", async (Dictionary<string,BinModel> bin) =>
             {
                 var binService = app.Services.GetRequiredService<BinService>();
-                await binService.StartTransaction(bin);
+                await binService.StartTransaction(bin["bin"]);
                 return Results.Ok();
             });
             app.MapGet("/End", async () =>
@@ -92,13 +94,13 @@ namespace CoilBin.Api
                 var binService = app.Services.GetRequiredService<BinService>();
                 var tr = manager.RunningTransactionData;
 
-                if (!tr.IsRunning && tr.IsReady && bin.Dispose.HasValue && bin.Dispose.Value)
+                if (!tr.IsRunning && tr.IsReady && bin.Dispose )
                 {
                     bin.Type = "Dispose";
 
                     await binService.StartTransaction(bin);
                 }
-                else if (!tr.IsRunning && !tr.IsReady && tr.IsVerify && tr.Type == "Dispose" && (!bin.Dispose.HasValue  || !bin.Dispose.Value))
+                else if (!tr.IsRunning && !tr.IsReady && tr.IsVerify && tr.Type == "Dispose" && (!bin.Dispose))
                 {
                     await binService.EndTransaction();
                 }
@@ -110,6 +112,7 @@ namespace CoilBin.Api
         {
             var config = ConfigWeb(args);
             var app = BuildWeb(config);
+
             app.Run();
         }
     }

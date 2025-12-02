@@ -1,10 +1,7 @@
 ﻿using CoilBin.Models;
-using CoilBin.PLC;
 using CoilBin.PLC.Contracts;
-using CoilBin.PLC.Services;
 using CoilBin.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
-using StackExchange.Redis;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -13,9 +10,9 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
-namespace CoilBin.Desktop.Extension
+namespace CoilBin.Extensions
 {
-    public static class ServiceCollectionExtension
+    public static class DesktopServiceExtensions
     {
         public static void BuildConfig(this IServiceCollection collection)
         {
@@ -30,17 +27,7 @@ namespace CoilBin.Desktop.Extension
             config = JsonSerializer.Deserialize<ConfigModel>(read)!;
             collection.AddSingleton(config);
             collection.AddSingleton<IConfigPLC>(config);
-        }
-        public static void AddCommonServices(this IServiceCollection collection)
-        {
-            collection.AddScoped<BinService>();
-            collection.AddSingleton<RunningTransactionManager>();
-            collection.AddSingleton<BinInfoManager>();
-            collection.AddScoped<PLCService>();
             collection.AddTransient<MainViewModel>();
-            collection.AddSingleton<IConnectionMultiplexer>(
-    ConnectionMultiplexer.Connect("localhost")
-);
         }
     }
 }

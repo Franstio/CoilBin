@@ -3,6 +3,7 @@ using Serilog;
 using StackExchange.Redis;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
@@ -19,7 +20,7 @@ namespace CoilBin.PLC
             get
             {
 
-                var cur = db.GetDatabase(9);
+                var cur = db.GetDatabase(7);
                 string? value = cur.StringGet(KEY);
                 BinModel tr = value is null ? new BinModel() : JsonSerializer.Deserialize<BinModel>(value)!;
                 return tr;
@@ -32,11 +33,18 @@ namespace CoilBin.PLC
             {
                 await SemaphoreSlim.WaitAsync();
                 var cur = db.GetDatabase(7);
-                await cur.StringSetAsync(KEY, JsonSerializer.Serialize(BinInfoModel));
+                await cur.StringSetAsync(KEY, JsonSerializer.Serialize(data));
             }
             catch (Exception e)
             {
                 Log.Error($"From Bin Info Manager: {e.Message}");
+                try
+                {
+                    ProcessStartInfo startInfo = new ProcessStartInfo() { FileName = "/bin/bash", Arguments = "-c \"sudo systemctl restart redis-server\"", };
+                    Process proc = new Process() { StartInfo = startInfo, };
+                    proc.Start();
+                }
+                catch { }
             }
             finally
             {

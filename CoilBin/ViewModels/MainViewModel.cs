@@ -8,7 +8,9 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using LiveChartsCore.Painting;
 using LiveChartsCore.SkiaSharpView.Painting;
+using Serilog;
 using System;
+using System.Net.Http;
 using System.Threading.Tasks;
 
 namespace CoilBin.ViewModels;
@@ -49,13 +51,15 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty] private string instruksi = "";
 
     public string BinIP => BinService.GetBinIpAddress();
+    [ObservableProperty] public string serverStatus = "Offline";
     [ObservableProperty] public string plcStatus = "Offline";
-    public string Timbangan => config.Timbangan;
+    public string Timbangan => config.SERVER;
     private Task SensorReadingTask = null!;
-    private BinService BinService;
-    private ConfigModel config;
-    private RunningTransactionManager Manager;
-    private BinInfoManager BinInfoManager;
+    private Task CheckApiOnlineTask = null!;
+    private BinService BinService = null!;
+    private ConfigModel config = null!;
+    private RunningTransactionManager Manager = null!;
+    private BinInfoManager BinInfoManager = null!;
     partial void OnWeightChanged(decimal value)
     {
         WeightPercentage = (value / maxWeight) * 100;
@@ -94,44 +98,95 @@ public partial class MainViewModel : ViewModelBase
         BinInfoManager = binInfoManager;
         BinService = binService;
         SensorReadingTask = Task.Run(SensorLoop);
+        CheckApiOnlineTask = Task.Run(CheckApi);
+        Log.Information("Running Main View Model");
+    }
+    public MainViewModel() { }
+    private async Task CheckApi()
+    {
+        if (BinService is null)
+            return;
+        var client = new HttpClient();
+        client.Timeout = TimeSpan.FromMilliseconds(500);
+        while (true)
+        {
+            try
+            {
+                var res = await client.GetAsync("http://localhost:5000/status");
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    ServerStatus = res.IsSuccessStatusCode ? "Online" : "Offline";
+                });
+            }
+            catch
+            {
+
+            }
+            await Task.Delay(1000);
+        }
     }
     private async Task SensorLoop()
     {
+        if (BinService is null)
+            return;
         while (true)
         {
-            var runningTransaction = Manager.RunningTransactionData;
-            var binInfo = BinInfoManager.BinInfoModel;
-            maxWeight = binInfo.Max_Weight ?? maxWeight;
-            Weight = binInfo.Weight ?? Weight;
-            data = await BinService.ReadingSensor();
-            PlcStatus = BinService.PLCStatus ? "Online" : "Offline";
-            await Dispatcher.UIThread.InvokeAsync( ()=>
+            try
             {
-                UpdatePLCData();
-                Instruksi = runningTransaction.Message;
-                if (runningTransaction.IsRunning)
-                    ReopenText = runningTransaction.Type == "Collection" ? "Bottom Lock" : "Reopen Lock";
+                var runningTransaction = Manager.RunningTransactionData;
+                var binInfo = BinInfoManager.BinInfoModel;
+                maxWeight = binInfo.Max_Weight;
+                Weight = binInfo.Weight;
+                decimal limit = (binInfo.Max_Weight / 100) * 90;
+                bool overLimit = binInfo.Weight >= binInfo.Max_Weight;
+                //await BinService.SwitchBinFeature(BinEnum.Yellow, !runningTransaction.IsRunning && !overLimit);
+                await BinService.SwitchBinFeature(BinEnum.Red, binInfo.Weight > limit);
+                data = await BinService.ReadingSensor();
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    UpdatePLCData();
+                    PlcStatus = BinService.PLCStatus ? "Online" : "Offline";
+                    Instruksi = runningTransaction.Message;
+                    if (runningTransaction.IsRunning)
+                        ReopenText = runningTransaction.Type == "Collection" ? "Bottom Lock" : "Reopen Lock";
+                    else
+                        ReopenText = "Reopen Lock";
+                });
+
+                if (runningTransaction.IsReady)
+                {
+                    if (data[(int)BinEnum.Yellow] == 0)
+                        await BinService.SwitchBinFeature(BinEnum.Yellow, true);
+                    if (data[(int)BinEnum.Green] == 1)
+                        await BinService.SwitchBinFeature(BinEnum.Green, false);
+                }
                 else
-                    ReopenText = "Reopen Lock";
-            });
+                {
+                    if ( data[(int)BinEnum.Yellow] == 1)
+                        await BinService.SwitchBinFeature(BinEnum.Yellow, false)    ;
+                    if (data[(int)BinEnum.Green] == 0)
+                        await BinService.SwitchBinFeature(BinEnum.Green, true);
+                }
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    if ((runningTransaction.IsRunning && runningTransaction.StartTime is not null && runningTransaction.StartTime.Value.AddSeconds(30) <= DateTime.Now) || runningTransaction.AllowReopen)
+                        AllowReopen = true;
+                    else
+                    {
+                        AllowReopen = false;
+                    }
+                });
+                if (runningTransaction.IsRunning && runningTransaction.Type == "Collection")
+                    await Collection();
+                else
+                    await Dispose();
 
-            if (runningTransaction.IsReady && data[(int)BinEnum.Yellow] == 0)
-                await BinService.SwitchBinFeature(BinEnum.Yellow, true);
-            if (runningTransaction.IsReady && data[(int)BinEnum.Green] == 1)
-                await BinService.SwitchBinFeature(BinEnum.Green, false);
-
-            if (runningTransaction.IsReady && runningTransaction.StartTime is not null  && runningTransaction.StartTime.Value.AddSeconds(30) <= DateTime.Now)
-                AllowReopen = true;
-            else
-                AllowReopen = false;
-
-
-            if (runningTransaction.IsRunning && runningTransaction.Type == "Collection")
-                await Collection();
-            else
-                await Dispose();
-            
-            await Task.Delay(1000);
+                await Task.Delay(500);
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"From SensorLoop: {ex.Message} | {ex.StackTrace}");
+            }
         }
     }
     private async Task Dispose()
@@ -149,6 +204,8 @@ public partial class MainViewModel : ViewModelBase
         {
             runningData.Message = "Lakukan Verifikasi";
             runningData.TopSensor = "0";
+            runningData.IsRunning = false;
+            runningData.IsVerify = true;
             runningData.Stage = 2;
         }
         await Manager.Save(runningData);
@@ -168,7 +225,17 @@ public partial class MainViewModel : ViewModelBase
         }
         else if (runningData.Stage==1 && data[(int)BinEnum.BottomSensor]==1)
         {
-            await BinService.EndTransaction();
+
+            runningData.Message = "Tekan Tombol Lock";
+            runningData.BottomSensor = "0";
+            runningData.Stage = 2;
+            runningData.AllowReopen = true;
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                AllowReopen = true;
+            });
+            await Manager.Save(runningData);
+            //            await BinService.EndTransaction();
         }
     }
     [RelayCommand]
@@ -178,8 +245,24 @@ public partial class MainViewModel : ViewModelBase
         if (rt.Type is null)
             return;
         await BinService.SwitchBinFeature(rt.Type == "Collection" ? BinEnum.BottomLock : BinEnum.TopLock,true);
-        AllowReopen = false;
-        rt.StartTime = null;
-        await Manager.Save(rt);
+        if (rt.Stage == 2 && rt.Type == "Collection")
+        {
+            await BinService.EndTransaction();
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                Instruksi = "";
+                AllowReopen = false;
+            });
+        }
+        else
+        {
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                AllowReopen = false;
+            });
+            rt.AllowReopen = false;
+            rt.StartTime = null;
+            await Manager.Save(rt);
+        }
     }
 }

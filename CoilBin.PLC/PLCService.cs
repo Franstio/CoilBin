@@ -47,11 +47,20 @@ namespace CoilBin.PLC
                 ModbusMaster = factory.CreateRtuMaster(adapter);
             }
         }
+        void Reconnect()
+        {
+            UsbPort.Close();
+            UsbPort = BuildSerialPort();
+            UsbPort.Open();
+            SerialPortAdapter adapter = new SerialPortAdapter(UsbPort);
+            IModbusFactory factory = new ModbusFactory();
+            ModbusMaster = factory.CreateRtuMaster(adapter);
+        }
         private SerialPort BuildSerialPort()
         {
             SerialPort sp = new SerialPort(Config.USBPATH,9600,Parity.None,8,StopBits.One);
-            sp.ReadTimeout = 1000;
-            sp.WriteTimeout = 1000;
+            sp.ReadTimeout = 5000;
+            sp.WriteTimeout = 5000;
             return sp;
         }
 
@@ -62,13 +71,16 @@ namespace CoilBin.PLC
             {
                 OpenConnection();
                 var res = await ModbusMaster.ReadHoldingRegistersAsync(clientId, address, value);
-                await Task.Delay(50);
+                //Log.Information($"Data read : {string.Join(",",res)}");
+                await Task.Delay(100);
+                SemaphoreSlim.Release();
                 return res;
             }
             catch (Exception ex) 
             {
                 Log.Error($"Read PLC {ex.Message} ");
                 Log.Error($"Read Data: {clientId} {address} {value}");
+                Reconnect();
                 SemaphoreSlim.Release();
                 return new ushort[value];
             }
@@ -80,7 +92,10 @@ namespace CoilBin.PLC
             {
                 OpenConnection();
                 await ModbusMaster.WriteSingleRegisterAsync(clientId, address, value);
-                await Task.Delay(50);
+              //  Log.Information($"Data Send {address} {value}");
+
+                SemaphoreSlim.Release();
+                await Task.Delay(100);
             }
             catch (Exception ex)
             {

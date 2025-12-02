@@ -18,7 +18,6 @@ namespace CoilBin.PLC
         public RunningTransaction RunningTransactionData { 
             get
             {
-
                 var cur = db.GetDatabase(9);
                 string? value = cur.StringGet(KEY);
                 RunningTransaction tr = value is null ? new RunningTransaction() : JsonSerializer.Deserialize<RunningTransaction>(value)!;
@@ -32,7 +31,7 @@ namespace CoilBin.PLC
             {
                 await SemaphoreSlim.WaitAsync();
                 var cur = db.GetDatabase(9);
-                await cur.StringSetAsync(KEY, JsonSerializer.Serialize(RunningTransactionData));
+                await cur.StringSetAsync(KEY, JsonSerializer.Serialize(data));
             }
             catch (Exception e)
             {
@@ -56,6 +55,7 @@ namespace CoilBin.PLC
             public string? BottomSensor { get; set; }
             public bool IsReady { get; set; } = true;
             public bool IsVerify { get; set; } = false;
+            public bool AllowReopen { get; set; } = false;
             public DateTime? StartTime { get; set; }  
             public string Message { get; set; } = string.Empty;
             public int Stage { get; set; } = 0;

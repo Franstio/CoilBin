@@ -35,8 +35,8 @@ namespace CoilBin.PLC.Services
         
         public async Task StartTransaction(BinModel bin)
         {
-            await SwitchBinFeature(BinEnum.Yellow, false);
-            await SwitchBinFeature(BinEnum.Green, true);
+//            await SwitchBinFeature(BinEnum.Yellow, false);
+//            await SwitchBinFeature(BinEnum.Green, true);
             var trData = manager.RunningTransactionData;
             bool isCollection = bin.Type == "Collection";
             trData.Message = isCollection ? "Buka Penutup Bawah" : "Buka Penutup Atas";
@@ -47,6 +47,7 @@ namespace CoilBin.PLC.Services
             trData.IsRunning = true;
             trData.IsReady = false;
             trData.IsVerify = false;
+            trData.AllowReopen = false;
             trData.Type = isCollection ? "Collection" : "Dispose";
             trData.StartTime = DateTime.Now;
             trData.Stage = 0;
@@ -55,13 +56,15 @@ namespace CoilBin.PLC.Services
         }
         public async Task ClearBin()
         {
+ //           await SwitchBinFeature(BinEnum.Yellow, true);
+ //           await SwitchBinFeature(BinEnum.Green, false);
             RunningTransactionManager.RunningTransaction tr = new();
             await manager.Save(tr);
         }
         public async Task EndTransaction()
         {
-            await SwitchBinFeature(BinEnum.Yellow, true);
-            await SwitchBinFeature(BinEnum.Green, false);
+//            await SwitchBinFeature(BinEnum.Yellow, true);
+//            await SwitchBinFeature(BinEnum.Green, false);
             var trData = manager.RunningTransactionData;
             if (trData.Type == "Dispose")
             {
@@ -74,16 +77,18 @@ namespace CoilBin.PLC.Services
                     await manager.Save(dt);
                 });
             }
-            else
+            else if (trData.Type == "Collection")
                 await SwitchBinFeature(BinEnum.BottomLock, true);
             trData.IsRunning = false;
             trData.TopSensor = null;
             trData.BottomSensor = null;
             trData.IsReady = true;
+            trData.Message = "";
             trData.IsVerify = false;
             trData.Type = null;
             trData.StartTime = null;
             trData.Stage = 0;
+            trData.AllowReopen = false;
             await manager.Save(trData);
         }
 

@@ -11,6 +11,6 @@ namespace CoilBin.Models
     {
         public string USBPATH { get; set; } = string.Empty;
 
-        public string Timbangan { get; set; } = string.Empty;
+        public string SERVER { get; set; } = string.Empty;
     }
 }

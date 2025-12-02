@@ -1,0 +1,6 @@
+@CoilBin.WebApi_HostAddress = http://localhost:5064
+
+GET {{CoilBin.WebApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
