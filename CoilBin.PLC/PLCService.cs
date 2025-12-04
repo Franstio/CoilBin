@@ -21,39 +21,38 @@ namespace CoilBin.PLC
         private IConfigPLC Config { get; set; }
 
 
-        private static Lazy<bool> PLCConnection = new Lazy<bool>(() => UsbPort is not null && ModbusMaster is not null && UsbPort.IsOpen);
-
-        public static bool PLCStatus => PLCConnection.Value;
+        
+        public static bool PLCStatus { get { return UsbPort is not null && ModbusMaster is not null && UsbPort.IsOpen; } }
         
         public PLCService(IConfigPLC config)
         {
             Config = config;
-            try
-            {
-                OpenConnection();
-            }
-            catch { }
         }
-        void OpenConnection()
+        async Task OpenConnection()
         {
             if (UsbPort is null || !UsbPort.IsOpen || ModbusMaster is null)
             {
                 if (UsbPort is null)
                     UsbPort = BuildSerialPort();
                 if (!UsbPort.IsOpen)
+                {
                     UsbPort.Open();
+                    await Task.Delay(300);
+                }
                 SerialPortAdapter adapter = new SerialPortAdapter(UsbPort);
                 IModbusFactory factory = new ModbusFactory();
                 ModbusMaster = factory.CreateRtuMaster(adapter);
             }
         }
-        void Reconnect()
+        async Task Reconnect()
         {
             UsbPort.Close();
             UsbPort = BuildSerialPort();
             UsbPort.Open();
+            await Task.Delay(300);
             SerialPortAdapter adapter = new SerialPortAdapter(UsbPort);
             IModbusFactory factory = new ModbusFactory();
+            (ModbusMaster as IDisposable)?.Dispose();
             ModbusMaster = factory.CreateRtuMaster(adapter);
         }
         private SerialPort BuildSerialPort()
@@ -69,10 +68,9 @@ namespace CoilBin.PLC
             await SemaphoreSlim.WaitAsync();
             try
             {
-                OpenConnection();
+                await OpenConnection();
                 var res = await ModbusMaster.ReadHoldingRegistersAsync(clientId, address, value);
-                //Log.Information($"Data read : {string.Join(",",res)}");
-                await Task.Delay(100);
+                Log.Information($"Data read : {string.Join(",",res)}");
                 SemaphoreSlim.Release();
                 return res;
             }
@@ -80,7 +78,7 @@ namespace CoilBin.PLC
             {
                 Log.Error($"Read PLC {ex.Message} ");
                 Log.Error($"Read Data: {clientId} {address} {value}");
-                Reconnect();
+                await Reconnect();
                 SemaphoreSlim.Release();
                 return new ushort[value];
             }
@@ -90,17 +88,17 @@ namespace CoilBin.PLC
             await SemaphoreSlim.WaitAsync();
             try
             {
-                OpenConnection();
+                await OpenConnection();
                 await ModbusMaster.WriteSingleRegisterAsync(clientId, address, value);
               //  Log.Information($"Data Send {address} {value}");
-
-                SemaphoreSlim.Release();
-                await Task.Delay(100);
             }
             catch (Exception ex)
             {
-                Log.Error($"Write PLC {ex.Message} ");
-                Log.Error($"Write Data: {clientId} {address} {value}");
+                //Log.Error($"Write PLC {ex.Message} ");
+                Log.Information($"Write Data: {clientId} {address} {value}");
+            }
+            finally
+            {
                 SemaphoreSlim.Release();
             }
         }
