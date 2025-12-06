@@ -1,9 +1,16 @@
 using CoilBin.PLC;
+using CoilBin.PLC.Contracts;
 using CoilBin.PLC.Eums;
+using CoilBin.PLC.Extension;
 using CoilBin.PLC.Models;
 using CoilBin.PLC.Services;
+using CoilBin.WebApi.Hubs.Bin;
+using CoilBin.WebApi.Models;
+using CoilBin.WebApi.Services;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Serilog;
+using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -31,9 +38,10 @@ namespace CoilBin.WebApi
                 options.AddPolicy(name: "allowAll",
                                   policy =>
                                   {
+                                      policy.SetIsOriginAllowed(x => true);
+                                      policy.AllowCredentials();
                                       policy.AllowAnyHeader();
                                       policy.AllowAnyMethod();
-                                      policy.AllowAnyOrigin();
                                   });
             });
             builder.Services.ConfigureHttpJsonOptions(options =>
@@ -42,7 +50,11 @@ namespace CoilBin.WebApi
             });
             return builder;
         }
-        public static  Task<WebApplication> BuildWeb(WebApplicationBuilder builder)
+        static void BuildService(WebApplicationBuilder builder)
+        {
+            
+        }
+        public static Task<WebApplication> BuildWeb(WebApplicationBuilder builder)
         {
 
 
@@ -56,33 +68,28 @@ namespace CoilBin.WebApi
                 await binService.StartTransaction(bin["bin"]);
                 return Results.Ok();
             });
-            app.MapGet("/End", async () =>
+            app.MapPost("/End", async (BinService binService) =>
             {
-
-                var binService = app.Services.GetRequiredService<BinService>();
                 await binService.EndTransaction();
                 return Results.Ok();
             });
-            app.MapGet("/Status", () => {
-                RunningTransactionManager manager = app.Services.GetRequiredService<RunningTransactionManager>();
+            app.MapGet("/Status", (RunningTransactionManager manager) => {
                 var tr = manager.RunningTransactionData;
                 return Results.Ok(tr);
             });
-            app.MapGet("/Status-Bin", () => {
-                BinInfoManager manager = app.Services.GetRequiredService<BinInfoManager>();
+            app.MapGet("/Status-Bin", (BinInfoManager manager) => {
                 var tr = manager.BinInfoModel;
                 return Results.Ok(tr);
             });
-            app.MapGet("/Clear-Bin", async () =>
+            app.MapGet("/Clear-Bin", async (IHubContext<BinHub, IBinClient> hubContext, BinService binService) =>
             {
 
-                var binService = app.Services.GetRequiredService<BinService>();
                 await binService.ClearBin();
-                return Results.Ok();
+                await hubContext.Clients.All.reload(new ReloadModel() { reload = true });
+                return Results.Json(new {msg="ok"});
             });
-            app.MapGet("/Feature", async ([FromQuery] string type, [FromQuery] string value) =>
+            app.MapGet("/Feature", async (BinService binService,[FromQuery] string type, [FromQuery] string value) =>
             {
-                var binService = app.Services.GetRequiredService<BinService>();
                 switch (type)
                 {
                     case "Red":
@@ -99,7 +106,42 @@ namespace CoilBin.WebApi
                 }
                 return Results.Ok();
             });
-
+            app.MapPost("/observeTopSensor", (object readTargetTop) =>
+            {
+                return Results.Ok();
+            });
+            app.MapPost("/observeBototmSensor", (object readTarget) =>
+            {
+                return Results.Ok();
+            });
+            app.MapPost("/lockBottom", async (BinService binService, RunningTransactionManager manager,ReopenPayloadModel.BottomLock payload) =>
+            {
+                var rt = manager.RunningTransactionData;
+                rt.StartTime = null;
+                rt.AllowReopen = false;
+                await manager.Save(rt);
+                await binService.SwitchBinFeature(BinEnum.BottomLock, true);
+                return Results.Ok();
+            });
+            app.MapPost("/lockTop", async (BinService binService, RunningTransactionManager manager,ReopenPayloadModel.TopLock payload) =>
+            {
+                var rt = manager.RunningTransactionData;
+                rt.StartTime = null;
+                rt.AllowReopen = false;
+                await manager.Save(rt);
+                await binService.SwitchBinFeature(BinEnum.TopLock, true);
+                return Results.Ok();
+            });
+            app.MapGet("/hostname", () =>
+            {
+                string hostname = System.Net.Dns.GetHostName();
+                return Results.Json(new { hostname });
+            });
+            app.MapGet("/ip",  (BinService binService) =>
+            {
+                string ip = binService.GetBinIpAddress();
+                return Results.Json(new object[] {ip});
+            });
             BroadcastTask = Task.Run( async () =>
             {
                 while (true)
@@ -214,12 +256,49 @@ namespace CoilBin.WebApi
             //await ClientIO.ConnectAsync();
             return Task.FromResult(app);
         }
+        public class WebConfigPLC : IConfigPLC
+        {
+            public string USBPATH { get; set; } = string.Empty;
+        }
+
+        static WebApplicationBuilder AddBaseService(WebApplicationBuilder builder)
+        {
+            ServicesLocator.ServiceCollection.AddCommonServices();
+            foreach (var service in ServicesLocator.ServiceCollection)
+                builder.Services.Add(service);
+            WebConfigPLC plcConfig = new WebConfigPLC();
+            plcConfig.USBPATH = builder.Configuration.GetSection("USBPATH").Value!;
+            builder.Services.AddSingleton<IConfigPLC>(plcConfig);
+            builder.Services.AddSingleton<SaleableService>();
+            builder.Services.AddSignalR();
+            return builder;
+        }
         public static void Main(string[] args)
         {
+            Log.Logger = new LoggerConfiguration()
+    .MinimumLevel.Debug()
+    .WriteTo.Async(a => a.Console())
+    .WriteTo.Async(a => a.File("logs/app.log",
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 7))
+    .WriteTo.Debug() // shows in VS output window
+    .CreateLogger();
+            try
+            {
+                ProcessStartInfo startInfo = new ProcessStartInfo() { FileName = "/bin/bash", Arguments = "-c \"sudo systemctl stop backend-web\"", };
+                Process proc = new Process() { StartInfo = startInfo, };
+                proc.Start();
+            }
+            catch (Exception ex) { Log.Error(ex.Message); }
             var configWeb = ConfigWeb(args);
+            configWeb = AddBaseService(configWeb);
+            var app = BuildWeb(configWeb).Result;
+            app.MapHub<BinHub>("/hub/bin");
 
-            var app = BuildWeb(configWeb);
-            app.Result.Run("http://*:5000");
+            var saleable = app.Services.GetRequiredService<SaleableService>();
+            _ = Task.Run(saleable.SensorLoop);
+            _ = Task.Run(saleable.TransactionLoop);
+            app.Run("http://*:5000");
         }
     }
 }

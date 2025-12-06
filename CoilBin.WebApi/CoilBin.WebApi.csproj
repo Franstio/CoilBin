@@ -7,12 +7,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.2.0" />
     <PackageReference Include="SocketIOClient" Version="3.1.2" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\CoilBin.PLC\CoilBin.PLC.csproj" />
-    <ProjectReference Include="..\CoilBin\CoilBin.csproj" />
   </ItemGroup>
 
 </Project>

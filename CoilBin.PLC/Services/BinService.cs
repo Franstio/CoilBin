@@ -7,6 +7,7 @@ using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
+using static CoilBin.PLC.RunningTransactionManager;
 
 namespace CoilBin.PLC.Services
 {
@@ -35,8 +36,6 @@ namespace CoilBin.PLC.Services
         
         public async Task StartTransaction(BinModel bin)
         {
-//            await SwitchBinFeature(BinEnum.Yellow, false);
-//            await SwitchBinFeature(BinEnum.Green, true);
             var trData = manager.RunningTransactionData;
             bool isCollection = bin.Type == "Collection";
             trData.Message = isCollection ? "Buka Penutup Bawah" : "Buka Penutup Atas";
@@ -56,15 +55,11 @@ namespace CoilBin.PLC.Services
         }
         public async Task ClearBin()
         {
- //           await SwitchBinFeature(BinEnum.Yellow, true);
- //           await SwitchBinFeature(BinEnum.Green, false);
             RunningTransactionManager.RunningTransaction tr = new();
             await manager.Save(tr);
         }
         public async Task EndTransaction()
         {
-//            await SwitchBinFeature(BinEnum.Yellow, true);
-//            await SwitchBinFeature(BinEnum.Green, false);
             var trData = manager.RunningTransactionData;
             if (trData.Type == "Dispose")
             {
@@ -78,12 +73,14 @@ namespace CoilBin.PLC.Services
                 });
             }
             else if (trData.Type == "Collection")
+            {
                 await SwitchBinFeature(BinEnum.BottomLock, true);
+                trData.Message = "";
+            }
             trData.IsRunning = false;
             trData.TopSensor = null;
             trData.BottomSensor = null;
             trData.IsReady = true;
-            trData.Message = "";
             trData.IsVerify = false;
             trData.Type = null;
             trData.StartTime = null;

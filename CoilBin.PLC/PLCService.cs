@@ -46,14 +46,23 @@ namespace CoilBin.PLC
         }
         async Task Reconnect()
         {
-            UsbPort.Close();
-            UsbPort = BuildSerialPort();
-            UsbPort.Open();
-            await Task.Delay(300);
-            SerialPortAdapter adapter = new SerialPortAdapter(UsbPort);
-            IModbusFactory factory = new ModbusFactory();
-            (ModbusMaster as IDisposable)?.Dispose();
-            ModbusMaster = factory.CreateRtuMaster(adapter);
+            try
+            {
+                if (UsbPort is null)
+                    return;
+                UsbPort.Close();
+                UsbPort = BuildSerialPort();
+                UsbPort.Open();
+                await Task.Delay(300);
+                SerialPortAdapter adapter = new SerialPortAdapter(UsbPort);
+                IModbusFactory factory = new ModbusFactory();
+                (ModbusMaster as IDisposable)?.Dispose();
+                ModbusMaster = factory.CreateRtuMaster(adapter);
+            }
+            catch(Exception e)
+            {
+                Log.Error($"Reconnect: {e.Message}");
+            }
         }
         private SerialPort BuildSerialPort()
         {
