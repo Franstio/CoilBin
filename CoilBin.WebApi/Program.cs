@@ -142,6 +142,14 @@ namespace CoilBin.WebApi
                 string ip = binService.GetBinIpAddress();
                 return Results.Json(new object[] {ip});
             });
+            app.MapGet("/laswork", async (PLCService plcService) =>
+            {
+                return Results.Json(new { minuteLastWork=await plcService.GetLastWork(),secondsLastWork=PLCService.StaticLastWork });
+            });
+            app.MapGet("/lastwork", async ( PLCService pLCService ) =>
+            {
+                return Results.Json(new { LastWork = await pLCService.GetLastWork(), secondsLastWork = PLCService.StaticLastWork });
+            });
             BroadcastTask = Task.Run( async () =>
             {
                 while (true)
@@ -187,73 +195,6 @@ namespace CoilBin.WebApi
                     await Task.Delay(300);
                 }
             });
-            //ClientIO = new SocketIOClient.SocketIO(app.Configuration.GetSection("Timbangan").Value!);
-
-            //ClientIO.On("getweight", async (res) =>
-            //{
-            //    try
-            //    {
-            //        var obj = res.GetValue<object>();
-            //        Log.Information("Before serialization: " +JsonSerializer.Serialize(obj));
-            //        BinModel bin = JsonSerializer.Deserialize<BinModel>(JsonSerializer.Serialize(obj),new JsonSerializerOptions() { PropertyNameCaseInsensitive = true })!;
-            //        Log.Information(JsonSerializer.Serialize(bin));
-
-            //        RunningTransactionManager manager = app.Services.GetRequiredService<RunningTransactionManager>();
-            //        BinInfoManager binManager = app.Services.GetRequiredService<BinInfoManager>();
-            //        await binManager.Save(bin);
-
-            //        var binService = app.Services.GetRequiredService<BinService>();
-            //        var tr = manager.RunningTransactionData;
-
-            //        if (!tr.IsRunning && tr.IsReady && bin.Dispose.HasValue && bin.Dispose.Value)
-            //        {
-            //            bin.Type = "Dispose";
-
-            //            await binService.StartTransaction(bin);
-            //        }
-            //        else if (!tr.IsRunning && !tr.IsReady && tr.IsVerify && tr.Type == "Dispose" && (!bin.Dispose.HasValue || !bin.Dispose.Value))
-            //        {
-            //            await binService.EndTransaction();
-            //        }
-            //    }
-            //    catch(Exception e)
-            //    {
-            //        Log.Error($"From getweight listener: {e.Message}");
-            //    }
-            //});
-            //ClientIO.OnConnected +=  (s,e) =>
-            //{
-            //    if (BroadcastTask.IsCompleted)
-            //    {
-            //        BroadcastTask = Task.Run(async () =>
-            //        {
-            //            while (true)
-            //            {
-            //                try
-            //                {
-            //                    await Task.Delay(1000);
-            //                    if (!ClientIO.Connected)
-            //                        continue;
-            //                    string hostname = System.Net.Dns.GetHostName();
-            //                    Log.Information($"Broadcast data to timbangan");
-            //                    await ClientIO.EmitAsync("getWeightBin", hostname);
-            //                }
-            //                catch (Exception e) {
-            //                    Log.Error($"Error broadcast data: {e.Message}");
-            //                }
-            //            }
-            //        });
-            //    }
-            //};
-            //ClientIO.OnReconnectFailed += (s, e) =>
-            //{
-            //    Log.Error($"Failed to connect {app.Configuration.GetSection("Timbangan").Value!}, reconnecting ");
-            //};
-            //ClientIO.OnReconnectError += (s, e) =>
-            //{
-            //    Log.Error($"Error when connecting {app.Configuration.GetSection("Timbangan").Value!}, {e.Message}");
-            //};
-            //await ClientIO.ConnectAsync();
             return Task.FromResult(app);
         }
         public class WebConfigPLC : IConfigPLC
@@ -298,6 +239,33 @@ namespace CoilBin.WebApi
             var saleable = app.Services.GetRequiredService<SaleableService>();
             _ = Task.Run(saleable.SensorLoop);
             _ = Task.Run(saleable.TransactionLoop);
+            _ = Task.Run(async () =>
+            {
+                while (true)
+                {
+                    using (var scope = app.Services.CreateScope())
+                    {
+                        await Task.Delay(1000);
+                        PLCService pLCService = scope.ServiceProvider.GetRequiredService<PLCService>();
+                        var LastWork = await pLCService.GetLastWork();
+                        if (DateTime.Now >= LastWork.AddMinutes(1))
+                        {
+
+                            try
+                            {
+                                await pLCService.SetLastWork(DateTime.Now);
+                                ProcessStartInfo startInfo = new ProcessStartInfo() { FileName = "/bin/bash", Arguments = "-c \"sudo reboot\"", };
+                                Process proc = new Process() { StartInfo = startInfo, };
+                                proc.Start();
+                            }
+                            catch { }
+
+                        }
+                        else if (DateTime.Now >= PLCService.StaticLastWork.AddSeconds(10))
+                            Environment.Exit(1);
+                    }
+                }
+            });
             app.Run("http://*:5000");
         }
     }

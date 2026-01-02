@@ -4,12 +4,16 @@ using NModbus.Device;
 using NModbus.IO;
 using NModbus.Serial;
 using Serilog;
+using StackExchange.Redis;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO.Ports;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace CoilBin.PLC
 {
@@ -18,15 +22,55 @@ namespace CoilBin.PLC
         private static SerialPort UsbPort = null!;
         private static IModbusMaster ModbusMaster = null!;
         private static SemaphoreSlim SemaphoreSlim = new SemaphoreSlim(1, 1);
-        private IConfigPLC Config { get; set; }
-
-
-        
+        private static SemaphoreSlim LastWorkSemaphore = new SemaphoreSlim(1,1);
+        private const string KEY = "LastPLCWork";
+        private  IConfigPLC Config { get; set; }
+        private readonly IConnectionMultiplexer redisCon;
         public static bool PLCStatus { get { return UsbPort is not null && ModbusMaster is not null && UsbPort.IsOpen; } }
-        
-        public PLCService(IConfigPLC config)
+        public static DateTime StaticLastWork = DateTime.Now;
+        public PLCService(IConfigPLC config,IConnectionMultiplexer con)
         {
             Config = config;
+            redisCon = con;
+        }
+        public async Task<DateTime> GetLastWork()
+        {
+            try
+            {
+                await LastWorkSemaphore.WaitAsync();
+
+                var cur = redisCon.GetDatabase(8);
+                string? dt = await cur.StringGetAsync(KEY);
+                return dt is null ? DateTime.Now : DateTime.Parse(dt);
+            }
+
+            catch
+            {
+                Log.Error("Failed reading PLC redis");
+                return DateTime.MinValue;
+            }
+            finally
+            {
+                LastWorkSemaphore.Release();
+            }
+        }
+        public async Task SetLastWork(DateTime dt)
+        {
+            StaticLastWork = dt;
+            try
+            {
+                await LastWorkSemaphore.WaitAsync();
+                var cur = redisCon.GetDatabase(8);
+                await cur.StringSetAsync(KEY, dt.ToString("yyyy-MM-dd HH:mm:ss"));
+            }
+            catch
+            {
+                Log.Error("Failed Writing PLC redis");
+            }
+            finally
+            {
+                LastWorkSemaphore.Release();
+            }
         }
         async Task OpenConnection()
         {
@@ -81,6 +125,7 @@ namespace CoilBin.PLC
                 var res = await ModbusMaster.ReadHoldingRegistersAsync(clientId, address, value);
                 Log.Information($"Data read : {string.Join(",",res)}");
                 SemaphoreSlim.Release();
+                await SetLastWork(DateTime.Now);
                 return res;
             }
             catch (Exception ex) 
@@ -92,19 +137,22 @@ namespace CoilBin.PLC
                 return new ushort[value];
             }
         }
-        public async Task WriteData(byte address, byte value, byte clientId = 1)
+        public async Task<bool> WriteData(byte address, byte value, byte clientId = 1)
         {
             await SemaphoreSlim.WaitAsync();
             try
             {
                 await OpenConnection();
                 await ModbusMaster.WriteSingleRegisterAsync(clientId, address, value);
-              //  Log.Information($"Data Send {address} {value}");
+                await SetLastWork(DateTime.Now);
+                //  Log.Information($"Data Send {address} {value}");
+                return true;
             }
             catch (Exception ex)
             {
                 //Log.Error($"Write PLC {ex.Message} ");
                 Log.Information($"Write Data: {clientId} {address} {value}");
+                return false;
             }
             finally
             {

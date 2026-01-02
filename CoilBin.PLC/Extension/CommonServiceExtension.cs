@@ -21,5 +21,12 @@ namespace CoilBin.PLC.Extension
     ConnectionMultiplexer.Connect("localhost")
 );
         }
+
+        public static void AddPLCService(this IServiceCollection collection)
+        {
+            collection.AddScoped<PLCService>();
+            collection.AddSingleton<IConnectionMultiplexer>(
+    ConnectionMultiplexer.Connect("localhost"));
+        }
     }
 }
