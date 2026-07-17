@@ -253,7 +253,7 @@ namespace CoilBin.WebApi
 
                             try
                             {
-                                await pLCService.SetLastWork(DateTime.Now);
+                                await pLCService.SetLastWork(DateTime.Now.AddMinutes(1));
                                 ProcessStartInfo startInfo = new ProcessStartInfo() { FileName = "/bin/bash", Arguments = "-c \"sudo reboot\"", };
                                 Process proc = new Process() { StartInfo = startInfo, };
                                 proc.Start();
